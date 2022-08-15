@@ -162,23 +162,29 @@ class FileList:
         self.path = path
         self.flist = []
         self.excludes = [os.path.join(self.path, ex) for ex in excludes]
-        # Those variables should be locked
-        self.stats_file_count = 0
-        self.stats_current_file = 'STARTED'
-        self.stats_total_size = 0
+
+        self.monit_lock = threading.Lock()
+        self.monit_file_count = 0
+        self.monit_current_file = 'STARTED'
+        self.monit_total_size = 0
 
     def monitor(self):
         start = time.time()
         while True:
-            if self.stats_current_file == '':
+            self.monit_lock.acquire()
+            stats_current_file = self.monit_current_file
+            self.monit_lock.release()
+            if stats_current_file == '':
                 break
-            elif self.stats_current_file != 'STARTED':
+            elif stats_current_file != 'STARTED':
                 current = time.time()
-                print('{} files ({} total), {:.0f}s (~{}/s) - {}'.format(self.stats_file_count,
-                                                                         humanize.naturalsize(self.stats_total_size),
+                self.monit_lock.acquire()
+                print('{} files ({} total), {:.0f}s (~{}/s) - {}'.format(self.monit_file_count,
+                                                                         humanize.naturalsize(self.monit_total_size),
                                                                          current - start,
-                                                                         humanize.naturalsize(self.stats_total_size/(current - start)),
-                                                                         self.stats_current_file.decode()), end = '\r')
+                                                                         humanize.naturalsize(self.monit_total_size/(current - start)),
+                                                                         self.monit_current_file.decode()), end = '\r')
+                self.monit_lock.release()
             time.sleep(1)
 
     # Return all files and directories from a given path
@@ -188,8 +194,10 @@ class FileList:
             for f in os.scandir(path):
                 fullpath = os.path.join(path, f.name)
                 if fullpath not in excludes:
-                    self.stats_file_count += 1
-                    self.stats_current_file = fullpath
+                    self.monit_lock.acquire()
+                    self.monit_file_count += 1
+                    self.monit_current_file = fullpath
+                    self.monit_lock.release()
                     try:
                         stats = f.stat(follow_symlinks=False)
                     except OSError as e:
@@ -204,7 +212,9 @@ class FileList:
                             crc = crc32(fullpath) if flag_crc32 and stat.S_ISREG(stats.st_mode) else None
                             target = os.readlink(f) if stat.S_ISLNK(stats.st_mode) else None
                             self.flist.append(Entry(name=fullpath.removeprefix(self.path), stats=stats, symlink=target, crc32=crc))
-                            self.stats_total_size += stats.st_size
+                            self.monit_lock.acquire()
+                            self.monit_total_size += stats.st_size
+                            self.monit_lock.release()
                             if stat.S_ISDIR(stats.st_mode):
                                 self.browse(fullpath, excludes, flag_crc32)
         except OSError as e:
@@ -215,7 +225,9 @@ class FileList:
             monit = threading.Thread(target=self.monitor)
             monit.start()
         self.browse(self.path, self.excludes, flag_crc32)
-        self.stats_current_file = '' # Stop thread
+        self.monit_lock.acquire()
+        self.monit_current_file = '' # Stop thread
+        self.monit_lock.release()
         # Sort file list
         tmp_flist = sorted(self.flist, key=lambda e: e.name)
         self.flist = tmp_flist
@@ -336,10 +348,6 @@ th_l.start()
 th_r.start()
 th_l.join()
 th_r.join()
-
-#l.run(args.compare_crc32)
-#r.run(args.compare_crc32)
-
 
 print("Left tree: {} entries".format(len(l)))
 print("Right tree: {} entries".format(len(r)))
