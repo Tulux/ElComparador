@@ -1,3 +1,6 @@
+# Florent DELAHAYE
+# https://github.com/Tulux/ElComparador
+
 import os
 import stat
 import zlib
@@ -239,17 +242,6 @@ class FileList:
 
     def __str__(self):
         return "".join([str(i) for i in self.flist])
-
-    # Iterative way: not efficient
-    def searchandcompare2(self, entry, comp_opts):
-        for e in self:
-            status, differences = e.compare(entry, comp_opts)
-            if status:
-                return True
-            else:
-                if differences:
-                    raise ComparisonDifference(differences)
-        return False
 
     # Dichotomic way: efficient
     def searchandcompare(self, entry, comp_opts):
