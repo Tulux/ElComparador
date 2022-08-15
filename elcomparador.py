@@ -243,7 +243,7 @@ class FileList:
     def __str__(self):
         return "".join([str(i) for i in self.flist])
 
-    # Dichotomic way: efficient
+    # Dichotomic search
     def searchandcompare(self, entry, comp_opts):
         seek_start = 0
         seek_end = len(self)
@@ -327,14 +327,24 @@ parser.add_argument('--compare-crc32', help='Compare crc32', action=argparse.Boo
 
 args = parser.parse_args()
 
-left = FileList(os.path.join(args.left, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
-left.run(args.progress, args.compare_crc32)
-right = FileList(os.path.join(args.right, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
-right.run(args.progress, args.compare_crc32)
-print("Left tree: {} entries".format(len(left)))
-print("Right tree: {} entries".format(len(right)))
+l = FileList(os.path.join(args.left, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
+r = FileList(os.path.join(args.right, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
 
-compare_filelists(left, right, args.mode, {'filemode': args.compare_permissions,
+th_l = threading.Thread(target = l.run, args = (args.progress, args.compare_crc32, ))
+th_r = threading.Thread(target = r.run, args = (args.progress, args.compare_crc32, ))
+th_l.start()
+th_r.start()
+th_l.join()
+th_r.join()
+
+#l.run(args.compare_crc32)
+#r.run(args.compare_crc32)
+
+
+print("Left tree: {} entries".format(len(l)))
+print("Right tree: {} entries".format(len(r)))
+
+compare_filelists(l, r, args.mode, {'filemode': args.compare_permissions,
                                            'owner': args.compare_owner,
                                            'group': args.compare_group,
                                            'suid': args.compare_suid,
