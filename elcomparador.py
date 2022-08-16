@@ -180,11 +180,11 @@ class FileList:
                 current = time.time()
                 self.monit_lock.acquire()
                 try:
-                    print('{} files ({} total), {:.0f}s (~{}/s) - {}'.format(self.monit_file_count,
-                                                                         humanize.naturalsize(self.monit_total_size),
-                                                                         current - start,
-                                                                         humanize.naturalsize(self.monit_total_size/(current - start)),
-                                                                         self.monit_current_file.decode()), end = '\r')
+                    logging.info('{} files ({} total), {:.0f}s (~{}/s) - {}'.format(self.monit_file_count,
+                                                                                    humanize.naturalsize(self.monit_total_size),
+                                                                                    current - start,
+                                                                                    humanize.naturalsize(self.monit_total_size/(current - start)),
+                                                                                    self.monit_current_file.decode()), end = '\r')
                 except UnicodeDecodeError as e:
                     logging.debug(e)
                     logging.debug(self.monit_current_file)
@@ -268,10 +268,6 @@ class FileList:
         last_iteration = False
 
         while True:
-            #print("Start: ", seek_start)
-            #print("End: ", seek_end)
-            #print("Index: ", seek_current)
-            #print("Element: ", self[seek_current].name)
             if entry.name > self[seek_current].name:
                 seek_start = seek_current
                 seek_current = int(seek_end - ((seek_end - seek_start) / 2))
@@ -300,14 +296,14 @@ def compare_filelists(left, right, mode, comp_opts):
             try:
                 if not left.searchandcompare(r_entry, comp_opts):
                     diff_count += 1
-                    print('{} missing in left tree'.format(os.path.join(right.path, r_entry.name).decode()))
+                    logging.info('{} missing in left tree'.format(os.path.join(right.path, r_entry.name).decode()))
             except ComparisonDifference as e:
                 diff_count += 1
-                print('{} has got differences:'.format(os.path.join(right.path, r_entry.name).decode()))
+                logging.info('{} has got differences:'.format(os.path.join(right.path, r_entry.name).decode()))
                 for d in e.differences:
-                    print('\t{}'.format(d))
+                    logging.info('\t{}'.format(d))
         if not diff_count:
-            print('Trees are identical')
+            logging.info('Trees are identical')
         return diff_count
 
 
@@ -317,7 +313,7 @@ def compare_filelists(left, right, mode, comp_opts):
 #
 ##
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 parser = argparse.ArgumentParser(description='Compare 2 file trees, ex: compare a folder and its backup', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('left', help='Left tree')
 parser.add_argument('right', help='Right tree')
@@ -359,8 +355,8 @@ else:
     l.run(args.progress, args.compare_crc32)
     r.run(args.progress, args.compare_crc32)
 
-print("Left tree: {} entries".format(len(l)))
-print("Right tree: {} entries".format(len(r)))
+logging.info("Left tree: {} entries".format(len(l)))
+logging.info("Right tree: {} entries".format(len(r)))
 
 compare_filelists(l, r, args.mode, {'filemode': args.compare_permissions,
                                            'owner': args.compare_owner,
