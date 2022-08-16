@@ -179,11 +179,16 @@ class FileList:
             elif stats_current_file != 'STARTED':
                 current = time.time()
                 self.monit_lock.acquire()
-                print('{} files ({} total), {:.0f}s (~{}/s) - {}'.format(self.monit_file_count,
+                try:
+                    print('{} files ({} total), {:.0f}s (~{}/s) - {}'.format(self.monit_file_count,
                                                                          humanize.naturalsize(self.monit_total_size),
                                                                          current - start,
                                                                          humanize.naturalsize(self.monit_total_size/(current - start)),
                                                                          self.monit_current_file.decode()), end = '\r')
+                except UnicodeDecodeError as e:
+                    logging.debug(e)
+                    logging.debug(self.monit_current_file)
+                    exit(0)
                 self.monit_lock.release()
             time.sleep(1)
 
