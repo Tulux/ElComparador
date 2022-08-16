@@ -268,10 +268,6 @@ class FileList:
         last_iteration = False
 
         while True:
-            #print("Start: ", seek_start)
-            #print("End: ", seek_end)
-            #print("Index: ", seek_current)
-            #print("Element: ", self[seek_current].name)
             if entry.name > self[seek_current].name:
                 seek_start = seek_current
                 seek_current = int(seek_end - ((seek_end - seek_start) / 2))
