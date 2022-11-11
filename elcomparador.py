@@ -206,22 +206,33 @@ class FileList:
                         stats = f.stat(follow_symlinks=False)
                     except OSError as e:
                         if e.errno == 13:
-                            logging.warning('<{}> exists but cannot be accessed: '.format(f.name.decode()))
+                            logging.warning('<{}> exists but cannot be accessed (errno 13)'.format(fullpath.decode()))
                             self.flist.append(Entry(name=f.name, inaccessible=True))
                     else:
                         # Excluding types other than directory, regular and symlink
                         if stat.S_ISDIR(stats.st_mode) or \
                            stat.S_ISREG(stats.st_mode) or \
                            stat.S_ISLNK(stats.st_mode):
-                            crc = crc32(fullpath) if flag_crc32 and stat.S_ISREG(stats.st_mode) else None
+                            
+                            # We must try again because it may be possible to stat a file without having access to it
+                            is_inaccessible = False
+                            crc = 0
+                            try:
+                                crc = crc32(fullpath) if flag_crc32 and stat.S_ISREG(stats.st_mode) else None
+                            except OSError as e:
+                                if e.errno == 13:
+                                    logging.warning('<{}> exists but cannot be accessed (errno 13)'.format(fullpath.decode()))
+                                    is_inaccessible = True
+                            
                             target = os.readlink(f) if stat.S_ISLNK(stats.st_mode) else None
-                            self.flist.append(Entry(name=fullpath.removeprefix(self.path), stats=stats, symlink=target, crc32=crc))
+                            self.flist.append(Entry(name=fullpath.removeprefix(self.path), stats=stats, symlink=target, crc32=crc, inaccessible=is_inaccessible))
                             self.monit_lock.acquire()
                             self.monit_total_size += stats.st_size
                             self.monit_lock.release()
                             if stat.S_ISDIR(stats.st_mode):
                                 self.browse(fullpath, excludes, flag_crc32)
         except OSError as e:
+            logging.warning(e)
             logging.warning('<{}> cannot be listed'.format(path.decode()))
 
     def run(self, flag_progress, flag_crc32):
