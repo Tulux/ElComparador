@@ -188,7 +188,6 @@ class FileList:
                 except UnicodeDecodeError as e:
                     logging.debug(e)
                     logging.debug(self.monit_current_file)
-                    exit(0)
                 self.monit_lock.release()
             time.sleep(1)
 
