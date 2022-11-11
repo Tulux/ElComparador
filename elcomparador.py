@@ -228,12 +228,20 @@ class FileList:
         if flag_progress:
             monit = threading.Thread(target=self.monitor)
             monit.start()
+
+        logging.debug('<{}>: starting browsing'.format(self.path))
         self.browse(self.path, self.excludes, flag_crc32)
+        logging.debug('<{}>: finished browsing, waiting for lock'.format(self.path))
+
         self.monit_lock.acquire()
         self.monit_current_file = '' # Stop thread
         self.monit_lock.release()
+
+        logging.debug('<{}>: lock released, starting sorting'.format(self.path))
         # Sort file list
         tmp_flist = sorted(self.flist, key=lambda e: e.name)
+        logging.debug('<{}>: finished sorting'.format(self.path))
+
         self.flist = tmp_flist
 
     def getEntry(self, filename):
@@ -289,8 +297,9 @@ class FileList:
             raise ComparisonDifference(differences)
 
 def compare_filelists(left, right, mode, comp_opts):
+    logging.debug('Comparison: starting')
+    diff_count = 0
     if mode == 'ref_right':
-        diff_count = 0
         for r_entry in right:
             try:
                 if not left.searchandcompare(r_entry, comp_opts):
@@ -303,7 +312,8 @@ def compare_filelists(left, right, mode, comp_opts):
                     print('\t{}'.format(d))
         if not diff_count:
             print('Trees are identical')
-        return diff_count
+    logging.debug('Comparison: finished')
+    return diff_count
 
 
 ##
@@ -312,8 +322,8 @@ def compare_filelists(left, right, mode, comp_opts):
 #
 ##
 
-logging.basicConfig(level=logging.INFO)
 parser = argparse.ArgumentParser(description='Compare 2 file trees, ex: compare a folder and its backup', formatter_class=argparse.RawTextHelpFormatter)
+parser.add_argument('-d', '--debug', help='Enable debug', action='store_true', default=False)
 parser.add_argument('left', help='Left tree')
 parser.add_argument('right', help='Right tree')
 parser.add_argument('-m', '--mode', help='Comparison mode:\n'
@@ -339,6 +349,11 @@ parser.add_argument('--compare-symlink', help='Compare symlink target', action=a
 parser.add_argument('--compare-crc32', help='Compare crc32', action=argparse.BooleanOptionalAction, default=True)
 
 args = parser.parse_args()
+
+if args.debug:
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    logging.basicConfig(level=logging.INFO)
 
 l = FileList(os.path.join(args.left, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
 r = FileList(os.path.join(args.right, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
