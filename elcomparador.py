@@ -334,7 +334,6 @@ def compare_filelists(left, right, mode, comp_opts):
 ##
 
 parser = argparse.ArgumentParser(description='Compare 2 file trees, ex: compare a folder and its backup', formatter_class=argparse.RawTextHelpFormatter)
-parser.add_argument('-d', '--debug', help='Enable debug', action='store_true', default=False)
 parser.add_argument('left', help='Left tree')
 parser.add_argument('right', help='Right tree')
 parser.add_argument('-m', '--mode', help='Comparison mode:\n'
@@ -343,6 +342,8 @@ parser.add_argument('-m', '--mode', help='Comparison mode:\n'
                                          '\tfull:\t\t combine ref_right and ref_left', default="ref_right")
 parser.add_argument('-e','--excludes', action='append', help='Excluded folders or files from left and right trees', default=[])
 parser.add_argument('-p','--progress', help='Show progress', action='store_true', default=False)
+parser.add_argument('-d', '--debug', help='Enable debug', action='store_true', default=False)
+parser.add_argument('--dump', help='Dump file trees', action='store_true', default=False)
 parser.add_argument('--parallel', help='Run parallel trees discovery, recommended for trees located on different devices', action=argparse.BooleanOptionalAction, default=True)
 parser.add_argument('--compare-permissions', help='Compare permissions', action=argparse.BooleanOptionalAction, default=True)
 parser.add_argument('--compare-owner', help='Compare owner', action=argparse.BooleanOptionalAction, default=True)
@@ -381,7 +382,11 @@ else:
     r.run(args.progress, args.compare_crc32)
 
 print("Left tree: {} entries".format(len(l)))
+if args.dump:
+    print(l)
 print("Right tree: {} entries".format(len(r)))
+if args.dump:
+    print(r)
 
 compare_filelists(l, r, args.mode, {'filemode': args.compare_permissions,
                                        'owner': args.compare_owner,
