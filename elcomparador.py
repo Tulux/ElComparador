@@ -13,6 +13,7 @@ import humanize
 import logging
 import datetime
 import enum
+import shutil
 
 
 def crc32(filename):
@@ -24,6 +25,16 @@ def crc32(filename):
                 break
             hash = zlib.crc32(s, hash)
         return "%08X" % (hash & 0xFFFFFFFF)
+
+def print_refresh(msg, prefix_size = 0):
+    term_width = shutil.get_terminal_size()[0]
+    prefix = msg[:prefix_size]
+    suffix_max = term_width - len(prefix)
+    if len(msg) >= term_width:
+        msg = '...' + msg[-suffix_max+3:]
+    else:
+        msg = msg[prefix_size:]
+    print(f'{prefix}{msg}\033[K', end='\r')
 
 class FileType(enum.Enum):
     DIR = enum.auto()
@@ -188,9 +199,9 @@ class FileList:
                 current = time.time()
                 self.monit_lock.acquire()
                 try:
-                    print(f'{self.monit_file_count} files ({humanize.naturalsize(self.monit_total_size)} total), '
+                    print_refresh(f'{self.monit_file_count} files ({humanize.naturalsize(self.monit_total_size)} total), '
                           f'{current - start:.0f}s (~{humanize.naturalsize(self.monit_total_size/(current - start))}/s) - '
-                          f'{self.monit_current_file}\033[K', end = '\r')
+                          f'{self.monit_current_file}', prefix_size = 20)
                 except UnicodeDecodeError as e:
                     logging.debug(e)
                     logging.debug(self.monit_current_file)
@@ -347,7 +358,7 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
         else:
             if smart_crc32:
                 if progress:
-                    print(f'Calculating CRC32 on both sides for <{s_entry.name}> ({current_file}/{total} - {current_file/total*100:.1f}%)\033[K', end='\r')
+                    print_refresh(f'CRC32 check for <{s_entry.name}> ({current_file}/{total} - {current_file/total*100:.1f}%)', prefix_size=17)
 
                 if parallel:
                     se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), True if mode == 'complete' else False, ))
