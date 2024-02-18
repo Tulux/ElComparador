@@ -351,7 +351,9 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
         else:
             if smart_crc32:
                 if progress:
-                    print_refresh(f'CRC32 check for <{s_entry.name}> ({current_file}/{total} - {current_file/total*100:.1f}%)', prefix_size=17)
+                    prefix = f'CRC32 check ({current_file}/{total} - {current_file/total*100:.1f}%) <'
+                    message = f'{s_entry.name}>'
+                    print_refresh(prefix+message, prefix_size=len(prefix))
 
                 if parallel:
                     se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), ))
