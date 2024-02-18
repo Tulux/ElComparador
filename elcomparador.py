@@ -198,13 +198,8 @@ class FileList:
             elif stats_current_file != 'STARTED':
                 current = time.time()
                 self.monit_lock.acquire()
-                try:
-                    print_refresh(f'{self.monit_file_count} files ({humanize.naturalsize(self.monit_total_size)} total), '
-                          f'{current - start:.0f}s (~{humanize.naturalsize(self.monit_total_size/(current - start))}/s) - '
-                          f'{self.monit_current_file}', prefix_size = 20)
-                except UnicodeDecodeError as e:
-                    logging.debug(e)
-                    logging.debug(self.monit_current_file)
+                prefix = f'{self.monit_file_count} files ({humanize.naturalsize(self.monit_total_size)} total), {current - start:.0f}s (~{humanize.naturalsize(self.monit_total_size/(current - start))}/s) - '
+                print_refresh(prefix + f'{self.monit_current_file}', prefix_size = len(prefix))
                 self.monit_lock.release()
             time.sleep(1)
 
