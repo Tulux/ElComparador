@@ -80,7 +80,7 @@ class Entry:
 
     def __str__(self):
         ret = "=" * 50 + "\n"
-        ret += "{}\n".format(self.name.decode())
+        ret += f"{self.name}\n"
         ret += "Type: "
         match self.type:
             case FileType.DIR:
@@ -88,28 +88,20 @@ class Entry:
             case FileType.REG:
                 ret += "Regular\n"
             case FileType.LNK:
-                ret += "Symbolic Link, target: {}\n".format(self.symlink.decode())
+                ret += f"Symbolic Link, target: {self.symlink}\n"
         if self.inaccessible:
             ret += " [INACCESSIBLE]\n"
         else:
-            ret += ("Mode: {}\n"
-                    "Owner: {}\n"
-                    "Group: {}\n"
-                    "SUID: {}\n"
-                    "GUID: {}\n"
-                    "Sticky bit: {}\n"
-                    "Creation date: {}\n"
-                    "Modification date: {}\n"
-                    "Access date: {}\n").format(self.filemode,
-                                           self.owner,
-                                           self.group,
-                                           self.suid,
-                                           self.guid,
-                                           self.sticky,
-                                           datetime.datetime.fromtimestamp(self.ctime).strftime("%Y-%m-%dT%H:%M:%S%z"),
-                                           datetime.datetime.fromtimestamp(self.mtime).strftime("%Y-%m-%dT%H:%M:%S%z"),
-                                           datetime.datetime.fromtimestamp(self.atime).strftime("%Y-%m-%dT%H:%M:%S%z"))
-            ret += "Size: {}\nCRC32: {}\n".format(humanize.naturalsize(self.size), self.crc32) if self.type == FileType.REG else ""
+            ret += (f"Mode: {self.filemode}\n"
+                    f"Owner: {self.owner}\n"
+                    f"Group: {self.group}\n"
+                    f"SUID: {self.suid}\n"
+                    f"GUID: {self.guid}\n"
+                    f"Sticky bit: {self.sticky}\n"
+                    f"Creation date: {datetime.datetime.fromtimestamp(self.ctime).strftime('%Y-%m-%dT%H:%M:%S%z')}\n"
+                    f"Modification date: {datetime.datetime.fromtimestamp(self.mtime).strftime('%Y-%m-%dT%H:%M:%S%z')}\n"
+                    f"Access date: {datetime.datetime.fromtimestamp(self.atime).strftime('%Y-%m-%dT%H:%M:%S%z')}\n")
+            ret += f"Size: {humanize.naturalsize(self.size)}\nCRC32: {self.crc32}\n" if self.type == FileType.REG else ""
         return ret
 
     def __repr__(self):
@@ -196,11 +188,9 @@ class FileList:
                 current = time.time()
                 self.monit_lock.acquire()
                 try:
-                    print('{} files ({} total), {:.0f}s (~{}/s) - {}\033[K'.format(self.monit_file_count,
-                                                                         humanize.naturalsize(self.monit_total_size),
-                                                                         current - start,
-                                                                         humanize.naturalsize(self.monit_total_size/(current - start)),
-                                                                         self.monit_current_file.decode()), end = '\r')
+                    print(f'{self.monit_file_count} files ({humanize.naturalsize(self.monit_total_size)} total), '
+                          f'{current - start:.0f}s (~{humanize.naturalsize(self.monit_total_size/(current - start))}/s) - '
+                          f'{self.monit_current_file}\033[K', end = '\r')
                 except UnicodeDecodeError as e:
                     logging.debug(e)
                     logging.debug(self.monit_current_file)
@@ -223,7 +213,7 @@ class FileList:
                     except OSError as e:
                         if e.errno == 13:
                             if mode == 'complete':
-                                logging.info(f'<{fullpath.decode()}> exists but cannot be accessed (errno 13)')
+                                logging.info(f'<{fullpath}> exists but cannot be accessed (errno 13)')
                             self.flist.append(Entry(name=f.name, inaccessible=True))
                     else:
                         # Excluding types other than directory, regular and symlink
@@ -244,7 +234,7 @@ class FileList:
                                 self.browse(fullpath, excludes, mode, flag_crc32)
         except OSError as e:
             if mode == 'complete':
-                logging.info(f'<{path.decode()}> cannot be listed')
+                logging.info(f'<{path}> cannot be listed')
 
     def entryCalculateCRC32(self, entry):
         crc = 0
@@ -263,18 +253,18 @@ class FileList:
             monit = threading.Thread(target=self.monitor)
             monit.start()
 
-        logging.debug('<{}>: starting browsing'.format(self.path))
+        logging.debug(f'<{self.path}>: starting browsing')
         self.browse(self.path, self.excludes, mode, flag_crc32)
-        logging.debug('<{}>: finished browsing, waiting for lock'.format(self.path))
+        logging.debug(f'<{self.path}>: finished browsing, waiting for lock')
 
         self.monit_lock.acquire()
         self.monit_current_file = '' # Stop thread
         self.monit_lock.release()
 
-        logging.debug('<{}>: lock released, starting sorting'.format(self.path))
+        logging.debug(f'<{self.path}>: lock released, starting sorting')
         # Sort file list
         tmp_flist = sorted(self.flist, key=lambda e: e.name)
-        logging.debug('<{}>: finished sorting'.format(self.path))
+        logging.debug(f'<{self.path}>: finished sorting')
 
         self.flist = tmp_flist
 
@@ -344,18 +334,18 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
             if not dst.searchAndCompare(s_entry, comp_opts):
                 if mode == 'complete':
                     diff_count += 1
-                    print(f'<{s_entry.name.decode()}> missing in destination tree')
+                    print(f'<{s_entry.name}> missing in destination tree')
                 continue
         except ComparisonDifference as e:
             if mode == 'complete':
                 diff_count += 1
-                print(f'<{s_entry.name.decode()}> has got differences:')
+                print(f'<{s_entry.name}> has got differences:')
                 for d in e.differences:
-                    print('\t{}'.format(d))
+                    print(f'\t{d}')
         else:
             if smart_crc32:
                 if progress:
-                    print(f'Calculating CRC32 on both sides for <{s_entry.name.decode()}> ({current_file}/{total} - {current_file/total*100:.1f}%)\033[K', end='\r')
+                    print(f'Calculating CRC32 on both sides for <{s_entry.name}> ({current_file}/{total} - {current_file/total*100:.1f}%)\033[K', end='\r')
 
                 if parallel:
                     se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), ))
@@ -372,13 +362,13 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
                     dst.searchAndCompare(s_entry, comp_opts)
                 except ComparisonDifference as e:
                     diff_count += 1
-                    print(f'⚠ WARNING: <{s_entry.name.decode()}> has similar metadatas but different CRC32, THERE MIGHT BE CORRUPTION ON ONE SIDE')
+                    print(f'⚠ WARNING: <{s_entry.name}> has similar metadatas but different CRC32, THERE MIGHT BE CORRUPTION ON ONE SIDE')
 
     if not diff_count:
         if mode == 'complete':
-            print('Trees are identical')
+            print('Trees are identical\033[K')
         if mode == 'corruption':
-            print('No corruption detected')
+            print('No corruption detected\033[K')
     logging.debug('Comparison: finished')
     return diff_count
 
@@ -440,9 +430,9 @@ else:
     s.run(args.mode, args.progress, True if args.compare_crc32 == 'always' else False)
     d.run(args.mode, args.progress, True if args.compare_crc32 == 'always' else False)
 
-if args.mode == 'complete' :    print("Source tree: {} entries".format(len(s)))
+if args.mode == 'complete' :    print(f"Source tree: {len(s)} entries")
 if args.dump:                   print(s)
-if args.mode == 'complete' :    print("Destination tree: {} entries".format(len(d)))
+if args.mode == 'complete' :    print(f"Destination tree: {len(d)} entries")
 if args.dump:                   print(d)
 
 exit(compareFilelists(s, d, args.mode, True if args.compare_crc32 == 'smart' else False,
