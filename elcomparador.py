@@ -1,3 +1,4 @@
+#!/bin/python3
 # Florent DELAHAYE
 # https://github.com/Tulux/ElComparador
 
@@ -374,7 +375,10 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
                     print(f'⚠ WARNING: <{s_entry.name.decode()}> has similar metadatas but different CRC32, THERE MIGHT BE CORRUPTION ON ONE SIDE')
 
     if not diff_count:
-        print('Trees are identical')
+        if mode == 'complete':
+            print('Trees are identical')
+        if mode == 'corruption':
+            print('No corruption detected')
     logging.debug('Comparison: finished')
     return diff_count
 
