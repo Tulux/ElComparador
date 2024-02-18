@@ -307,22 +307,24 @@ class FileList:
         else:
             raise ComparisonDifference(differences)
 
-def compare_filelists(left, right, mode, comp_opts):
+def compare_filelists(src, dst, mode, comp_opts):
     logging.debug('Comparison: starting')
     diff_count = 0
-    if mode == 'ref_right':
-        for r_entry in right:
+    if mode == 'one_way':
+        for s_entry in src:
             try:
-                if not left.searchandcompare(r_entry, comp_opts):
+                if not dst.searchandcompare(s_entry, comp_opts):
                     diff_count += 1
-                    print('{} missing in left tree'.format(os.path.join(right.path, r_entry.name).decode()))
+                    print('{} missing in destination tree'.format(os.path.join(src.path, s_entry.name).decode()))
             except ComparisonDifference as e:
                 diff_count += 1
-                print('{} has got differences:'.format(os.path.join(right.path, r_entry.name).decode()))
+                print('{} has got differences:'.format(os.path.join(src.path, s_entry.name).decode()))
                 for d in e.differences:
                     print('\t{}'.format(d))
         if not diff_count:
             print('Trees are identical')
+    elif mode == 'full':
+        print('Full comparison: not implemented yet, please use one_way')
     logging.debug('Comparison: finished')
     return diff_count
 
@@ -334,12 +336,11 @@ def compare_filelists(left, right, mode, comp_opts):
 ##
 
 parser = argparse.ArgumentParser(description='Compare 2 file trees, ex: compare a folder and its backup', formatter_class=argparse.RawTextHelpFormatter)
-parser.add_argument('left', help='Left tree')
-parser.add_argument('right', help='Right tree')
-parser.add_argument('-m', '--mode', help='Comparison mode:\n'
-                                         '\tref_right:\t make sure any files from right tree exists in left one (default)\n'
-                                         '\tref_left:\t make sure any files from left tree exists in right one\n'
-                                         '\tfull:\t\t combine ref_right and ref_left', default="ref_right")
+parser.add_argument('src', help='Source tree')
+parser.add_argument('dst', help='Destination tree')
+parser.add_argument('-m', '--mode', choices=['one_way', 'full'], default='one_way', help='Comparison mode:\n'
+                        '\tone_way:\t compare all files existing in source against destination (default)\n'
+                        '\tfull:\t\t one_way + the opposite way, useful to make sure both trees are 100%% identical')
 parser.add_argument('-e','--excludes', action='append', help='Excluded folders or files from left and right trees', default=[])
 parser.add_argument('-p','--progress', help='Show progress', action='store_true', default=False)
 parser.add_argument('-d', '--debug', help='Enable debug', action='store_true', default=False)
@@ -367,28 +368,28 @@ if args.debug:
 else:
     logging.basicConfig(level=logging.INFO)
 
-l = FileList(os.path.join(args.left, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
-r = FileList(os.path.join(args.right, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
+s = FileList(os.path.join(args.src, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
+d = FileList(os.path.join(args.dst, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
 
 if args.parallel:
-    th_l = threading.Thread(target = l.run, args = (args.progress, args.compare_crc32, ))
-    th_r = threading.Thread(target = r.run, args = (args.progress, args.compare_crc32, ))
-    th_l.start()
-    th_r.start()
-    th_l.join()
-    th_r.join()
+    th_s = threading.Thread(target = s.run, args = (args.progress, args.compare_crc32, ))
+    th_d = threading.Thread(target = d.run, args = (args.progress, args.compare_crc32, ))
+    th_s.start()
+    th_d.start()
+    th_s.join()
+    th_d.join()
 else:
-    l.run(args.progress, args.compare_crc32)
-    r.run(args.progress, args.compare_crc32)
+    s.run(args.progress, args.compare_crc32)
+    d.run(args.progress, args.compare_crc32)
 
-print("Left tree: {} entries".format(len(l)))
+print("Source tree: {} entries".format(len(s)))
 if args.dump:
-    print(l)
-print("Right tree: {} entries".format(len(r)))
+    print(s)
+print("Destination tree: {} entries".format(len(d)))
 if args.dump:
-    print(r)
+    print(d)
 
-compare_filelists(l, r, args.mode, {'filemode': args.compare_permissions,
+compare_filelists(s, d, args.mode, {'filemode': args.compare_permissions,
                                        'owner': args.compare_owner,
                                        'group': args.compare_group,
                                        'suid': args.compare_suid,
