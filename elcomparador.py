@@ -195,7 +195,7 @@ class FileList:
                 current = time.time()
                 self.monit_lock.acquire()
                 try:
-                    print('{} files ({} total), {:.0f}s (~{}/s) - {}'.format(self.monit_file_count,
+                    print('{} files ({} total), {:.0f}s (~{}/s) - {}\033[K'.format(self.monit_file_count,
                                                                          humanize.naturalsize(self.monit_total_size),
                                                                          current - start,
                                                                          humanize.naturalsize(self.monit_total_size/(current - start)),
@@ -331,26 +331,31 @@ class FileList:
         else:
             raise ComparisonDifference(differences)
 
-def compareFilelists(src, dst, mode, smart_crc32, parallel, comp_opts):
+def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts):
     logging.debug('Comparison: starting')
     diff_count = 0
+    total = len(src)
+    current_file = 0
+
     for s_entry in src:
+        current_file += 1
         try:
             if not dst.searchAndCompare(s_entry, comp_opts):
-                diff_count += 1
                 if mode == 'complete':
+                    diff_count += 1
                     print(f'<{s_entry.name.decode()}> missing in destination tree')
                 continue
         except ComparisonDifference as e:
-            diff_count += 1
             if mode == 'complete':
+                diff_count += 1
                 print(f'<{s_entry.name.decode()}> has got differences:')
                 for d in e.differences:
                     print('\t{}'.format(d))
         else:
             if smart_crc32:
-                logging.debug(f'{s_entry.name} has similar metadatas in both trees, now checking CRC32')
-                # TODO: follow progress
+                if progress:
+                    print(f'Calculating CRC32 on both sides for <{s_entry.name.decode()}> ({current_file}/{total} - {current_file/total*100:.1f}%)\033[K', end='\r')
+
                 if parallel:
                     se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), ))
                     de_crc32 = threading.Thread(target = dst.entryCalculateCRC32, args = (dst.getEntry(s_entry.name), ))
@@ -436,16 +441,17 @@ if args.dump:                   print(s)
 if args.mode == 'complete' :    print("Destination tree: {} entries".format(len(d)))
 if args.dump:                   print(d)
 
-compareFilelists(s, d, args.mode, True if args.compare_crc32 == 'smart' else False, args.parallel, {'filemode': args.compare_permissions,
-                                                                                                                    'owner': args.compare_owner,
-                                                                                                                    'group': args.compare_group,
-                                                                                                                    'suid': args.compare_suid,
-                                                                                                                    'guid': args.compare_guid,
-                                                                                                                    'sticky': args.compare_sticky,
-                                                                                                                    'file-size': args.compare_file_size,
-                                                                                                                    'directory-size': args.compare_directory_size,
-                                                                                                                    'file-mtime': args.compare_file_mtime,
-                                                                                                                    'directory-mtime': args.compare_directory_mtime,
-                                                                                                                    'ctime': args.compare_ctime,
-                                                                                                                    'atime': args.compare_atime,
-                                                                                                                    'symlink': args.compare_symlink})
+exit(compareFilelists(s, d, args.mode, True if args.compare_crc32 == 'smart' else False,
+                        args.parallel, args.progress, {'filemode': args.compare_permissions,
+                                                        'owner': args.compare_owner,
+                                                        'group': args.compare_group,
+                                                        'suid': args.compare_suid,
+                                                        'guid': args.compare_guid,
+                                                        'sticky': args.compare_sticky,
+                                                        'file-size': args.compare_file_size,
+                                                        'directory-size': args.compare_directory_size,
+                                                        'file-mtime': args.compare_file_mtime,
+                                                        'directory-mtime': args.compare_directory_mtime,
+                                                        'ctime': args.compare_ctime,
+                                                        'atime': args.compare_atime,
+                                                        'symlink': args.compare_symlink}))
