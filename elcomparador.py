@@ -225,7 +225,7 @@ class FileList:
                             self.flist.append(Entry(name=fullpath.removeprefix(self.path), stats=stats, symlink=target))
                             
                             if flag_crc32 and stat.S_ISREG(stats.st_mode):
-                                self.entryCalculateCRC32(self.getEntry(fullpath.removeprefix(self.path)))
+                                self.entryCalculateCRC32(self.getEntry(fullpath.removeprefix(self.path)), True if mode == 'complete' else False)
 
                             self.monit_lock.acquire()
                             self.monit_total_size += stats.st_size
@@ -236,15 +236,17 @@ class FileList:
             if mode == 'complete':
                 logging.info(f'<{path}> cannot be listed')
 
-    def entryCalculateCRC32(self, entry):
+    def entryCalculateCRC32(self, entry, print_errno13):
         crc = 0
+        # stat() may success on some files whereas open() fails (ie: root-owned files)
         try:
             crc = crc32(os.path.join(self.path, entry.name))
         except OSError as e:
             if e.errno == 13:
-                logging.warning(f'<{os.path.join(self.path, entry.name)}> exists but cannot be accessed (errno 13)')
                 # Mark entry as inaccessible
                 entry.inaccessible = True
+                if print_errno13:
+                    logging.info(f'<{os.path.join(self.path, entry.name)}> exists but cannot be accessed (errno 13)')
         else:
             entry.crc32 = crc
 
@@ -348,15 +350,15 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
                     print(f'Calculating CRC32 on both sides for <{s_entry.name}> ({current_file}/{total} - {current_file/total*100:.1f}%)\033[K', end='\r')
 
                 if parallel:
-                    se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), ))
-                    de_crc32 = threading.Thread(target = dst.entryCalculateCRC32, args = (dst.getEntry(s_entry.name), ))
+                    se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), True if mode == 'complete' else False, ))
+                    de_crc32 = threading.Thread(target = dst.entryCalculateCRC32, args = (dst.getEntry(s_entry.name), True if mode == 'complete' else False, ))
                     se_crc32.start()
                     de_crc32.start()
                     se_crc32.join()
                     de_crc32.join()
                 else:
-                    src.entryCalculateCRC32(src.getEntry(s_entry.name))
-                    dst.entryCalculateCRC32(dst.getEntry(s_entry.name))
+                    src.entryCalculateCRC32(src.getEntry(s_entry.name), True if mode == 'complete' else False)
+                    dst.entryCalculateCRC32(dst.getEntry(s_entry.name), True if mode == 'complete' else False)
                 # Compare again
                 try:
                     dst.searchAndCompare(s_entry, comp_opts)
