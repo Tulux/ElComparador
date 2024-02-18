@@ -218,8 +218,7 @@ class FileList:
                         stats = f.stat(follow_symlinks=False)
                     except OSError as e:
                         if e.errno == 13:
-                            if mode == 'complete':
-                                logging.info(f'<{fullpath}> exists but cannot be accessed (errno 13)')
+                            logging.info(f'<{fullpath}> exists but cannot be accessed (errno 13)')
                             self.flist.append(Entry(name=f.name, inaccessible=True))
                     else:
                         # Excluding types other than directory, regular and symlink
@@ -231,7 +230,7 @@ class FileList:
                             self.flist.append(Entry(name=fullpath.removeprefix(self.path), stats=stats, symlink=target))
                             
                             if flag_crc32 and stat.S_ISREG(stats.st_mode):
-                                self.entryCalculateCRC32(self.getEntry(fullpath.removeprefix(self.path)), True if mode == 'complete' else False)
+                                self.entryCalculateCRC32(self.getEntry(fullpath.removeprefix(self.path)))
 
                             self.monit_lock.acquire()
                             self.monit_total_size += stats.st_size
@@ -242,7 +241,7 @@ class FileList:
             if mode == 'complete':
                 logging.info(f'<{path}> cannot be listed')
 
-    def entryCalculateCRC32(self, entry, print_errno13):
+    def entryCalculateCRC32(self, entry):
         crc = 0
         # stat() may success on some files whereas open() fails (ie: root-owned files)
         try:
@@ -251,8 +250,7 @@ class FileList:
             if e.errno == 13:
                 # Mark entry as inaccessible
                 entry.inaccessible = True
-                if print_errno13:
-                    logging.info(f'<{os.path.join(self.path, entry.name)}> exists but cannot be accessed (errno 13)')
+                logging.info(f'<{os.path.join(self.path, entry.name)}> exists but cannot be accessed (errno 13)')
         else:
             entry.crc32 = crc
 
@@ -356,15 +354,15 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
                     print_refresh(f'CRC32 check for <{s_entry.name}> ({current_file}/{total} - {current_file/total*100:.1f}%)', prefix_size=17)
 
                 if parallel:
-                    se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), True if mode == 'complete' else False, ))
-                    de_crc32 = threading.Thread(target = dst.entryCalculateCRC32, args = (dst.getEntry(s_entry.name), True if mode == 'complete' else False, ))
+                    se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), ))
+                    de_crc32 = threading.Thread(target = dst.entryCalculateCRC32, args = (dst.getEntry(s_entry.name), ))
                     se_crc32.start()
                     de_crc32.start()
                     se_crc32.join()
                     de_crc32.join()
                 else:
-                    src.entryCalculateCRC32(src.getEntry(s_entry.name), True if mode == 'complete' else False)
-                    dst.entryCalculateCRC32(dst.getEntry(s_entry.name), True if mode == 'complete' else False)
+                    src.entryCalculateCRC32(src.getEntry(s_entry.name))
+                    dst.entryCalculateCRC32(dst.getEntry(s_entry.name))
                 # Compare again
                 try:
                     dst.searchAndCompare(s_entry, comp_opts)
