@@ -437,8 +437,8 @@ if args.parallel:
     th_s.join()
     th_d.join()
 else:
-    s.run(args.progress, True if args.compare_crc32 == 'always' else False)
-    d.run(args.progress, True if args.compare_crc32 == 'always' else False)
+    s.run(args.mode, args.progress, True if args.compare_crc32 == 'always' else False)
+    d.run(args.mode, args.progress, True if args.compare_crc32 == 'always' else False)
 
 if args.mode == 'complete' :    print("Source tree: {} entries".format(len(s)))
 if args.dump:                   print(s)
