@@ -315,7 +315,7 @@ class FileList:
             elif entry.name < self[seek_current].name:
                 seek_end = seek_current
                 seek_current = int(seek_start + ((seek_end - seek_start) / 2))
-                if seek_end - seek_start == 1:
+                if seek_end - seek_start == 0:
                     last_iteration = True
             elif entry.name == self[seek_current].name:
                 break
