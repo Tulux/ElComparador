@@ -338,7 +338,7 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
         current_file += 1
         try:
             if not dst.searchAndCompare(s_entry, comp_opts):
-                if mode == 'complete':
+                if mode == 'complete' or mode == 'missing':
                     diff_count += 1
                     print(f'<{s_entry.name}> missing in destination tree')
                 continue
@@ -349,28 +349,29 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
                 for d in e.differences:
                     print(f'\t{d}')
         else:
-            if s_entry.type == FileType.REG and smart_crc32:
-                if progress:
-                    prefix = f'CRC32 check ({current_file}/{total} - {current_file/total*100:.1f}%) <'
-                    message = f'{s_entry.name}>'
-                    print_refresh(prefix+message, prefix_size=len(prefix))
+            if mode == 'complete' or mode == 'corruption':
+                if s_entry.type == FileType.REG and smart_crc32:
+                    if progress:
+                        prefix = f'CRC32 check ({current_file}/{total} - {current_file/total*100:.1f}%) <'
+                        message = f'{s_entry.name}>'
+                        print_refresh(prefix+message, prefix_size=len(prefix))
 
-                if parallel:
-                    se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), ))
-                    de_crc32 = threading.Thread(target = dst.entryCalculateCRC32, args = (dst.getEntry(s_entry.name), ))
-                    se_crc32.start()
-                    de_crc32.start()
-                    se_crc32.join()
-                    de_crc32.join()
-                else:
-                    src.entryCalculateCRC32(src.getEntry(s_entry.name))
-                    dst.entryCalculateCRC32(dst.getEntry(s_entry.name))
-                # Compare again
-                try:
-                    dst.searchAndCompare(s_entry, comp_opts)
-                except ComparisonDifference as e:
-                    diff_count += 1
-                    print(f'⚠ WARNING: <{s_entry.name}> has similar metadatas but different CRC32, THERE MIGHT BE CORRUPTION ON ONE SIDE')
+                    if parallel:
+                        se_crc32 = threading.Thread(target = src.entryCalculateCRC32, args = (src.getEntry(s_entry.name), ))
+                        de_crc32 = threading.Thread(target = dst.entryCalculateCRC32, args = (dst.getEntry(s_entry.name), ))
+                        se_crc32.start()
+                        de_crc32.start()
+                        se_crc32.join()
+                        de_crc32.join()
+                    else:
+                        src.entryCalculateCRC32(src.getEntry(s_entry.name))
+                        dst.entryCalculateCRC32(dst.getEntry(s_entry.name))
+                    # Compare again
+                    try:
+                        dst.searchAndCompare(s_entry, comp_opts)
+                    except ComparisonDifference as e:
+                        diff_count += 1
+                        print(f'⚠ WARNING: <{s_entry.name}> has similar metadatas but different CRC32, THERE MIGHT BE CORRUPTION ON ONE SIDE')
 
     # Required to clean line
     if progress:
@@ -397,9 +398,10 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
 parser = argparse.ArgumentParser(description='Compare source tree against tree destination, ex: compare a working tree against its backup', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('src', help='Source tree')
 parser.add_argument('dst', help='Destination tree')
-parser.add_argument('-m', '--mode', choices=['complete', 'corruption'], default='complete', help='Comparison modes:\n'
+parser.add_argument('-m', '--mode', choices=['complete', 'corruption', 'missing'], default='complete', help='Comparison modes:\n'
                         'complete:\t compare files metadatas and search for missing files, best option to show expected differences (ex: comparison against an old backup)\n'
-                        'corruption:\t only look for regular files with similar name/size/modification date but different CRC32, best option to show abnormal differences (ex: comparison against a fresh backup)\n')
+                        'corruption:\t only look for regular files with similar name/size/modification date but different CRC32, best option to show abnormal differences (ex: comparison against a fresh backup)\n'
+                        'missing:\t list files missing in destination\n')
 parser.add_argument('-e','--excludes', action='append', help='Excluded folders or files from left and right trees', default=[])
 parser.add_argument('-p','--progress', help='Show progress (tree discovery only)', action='store_true', default=False)
 parser.add_argument('-d', '--debug', help='Enable debug', action='store_true', default=False)
@@ -419,7 +421,9 @@ parser.add_argument('--compare-directory-mtime', help='Compare directory modifie
 parser.add_argument('--compare-ctime', help='Compare creation time (only for complete mode)', action=argparse.BooleanOptionalAction, default=False)
 parser.add_argument('--compare-atime', help='Compare access time (only for complete mode)', action=argparse.BooleanOptionalAction, default=False)
 parser.add_argument('--compare-symlink', help='Compare symlink target (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-crc32', choices=['never', 'always', 'smart'], default='smart', help='Hash calculation (CRC32) is highly CPU/IO intensive but is the only way to ensure files are bit-for-bit identical. "smart" parameter will run this calculation only for files that have same metadata values (size, modification date, etc.), this is the default behavior. Note: smart is forced in corruption mode.')
+parser.add_argument('--compare-crc32', choices=['never', 'always', 'smart'], default='smart', help='Hash calculation (CRC32) is highly CPU/IO intensive but is the only way to ensure files are bit-for-bit identical. '
+                                                                                                '"smart" parameter will run this calculation only for files that have same metadata values (size, modification date, etc.). '
+                                                                                                'Note: this option is only for complete mode (defaults to smart). Set to "smart" in corruption mode and to "never" in missing mode')
 
 args = parser.parse_args()
 
@@ -461,6 +465,23 @@ elif args.mode == 'corruption':
                             'file-size': True,
                             'directory-size': False,
                             'file-mtime': True,
+                            'directory-mtime': False,
+                            'ctime': False,
+                            'atime': False,
+                            'symlink': False}
+
+elif args.mode == 'missing':
+    discover_crc32 = False
+    comparison_smart_crc32 = False
+    comparison_criterias = {'filemode': False,
+                            'owner': False,
+                            'group': False,
+                            'suid': False,
+                            'guid': False,
+                            'sticky': False,
+                            'file-size': False,
+                            'directory-size': False,
+                            'file-mtime': False,
                             'directory-mtime': False,
                             'ctime': False,
                             'atime': False,
