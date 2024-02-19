@@ -399,27 +399,27 @@ parser.add_argument('src', help='Source tree')
 parser.add_argument('dst', help='Destination tree')
 parser.add_argument('-m', '--mode', choices=['complete', 'corruption'], default='complete', help='Comparison modes:\n'
                         'complete:\t compare files metadatas and search for missing files, best option to show expected differences (ex: comparison against an old backup)\n'
-                        'corruption:\t only look for files with similar metadatas but different CRC32, best option to show abnormal differences (ex: comparison against a fresh backup)\n')
+                        'corruption:\t only look for regular files with similar name/size/modification date but different CRC32, best option to show abnormal differences (ex: comparison against a fresh backup)\n')
 parser.add_argument('-e','--excludes', action='append', help='Excluded folders or files from left and right trees', default=[])
 parser.add_argument('-p','--progress', help='Show progress (tree discovery only)', action='store_true', default=False)
 parser.add_argument('-d', '--debug', help='Enable debug', action='store_true', default=False)
 parser.add_argument('-v', '--verbose', action='count', default=0)
 parser.add_argument('--dump', help='Dump file trees', action='store_true', default=False)
 parser.add_argument('--parallel', help='Run parallel tree discovery, recommended for trees located on different devices', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-permissions', help='Compare permissions', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-owner', help='Compare owner', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-group', help='Compare group', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-suid', help='Compare SUID', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-guid', help='Compare GUID', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-sticky', help='Compare sticky bit', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-file-size', help='Compare file size', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-directory-size', help='Compare directory size', action=argparse.BooleanOptionalAction, default=False)
-parser.add_argument('--compare-file-mtime', help='Compare file modified time', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-directory-mtime', help='Compare directory modified time', action=argparse.BooleanOptionalAction, default=False)
-parser.add_argument('--compare-ctime', help='Compare creation time', action=argparse.BooleanOptionalAction, default=False)
-parser.add_argument('--compare-atime', help='Compare access time', action=argparse.BooleanOptionalAction, default=False)
-parser.add_argument('--compare-symlink', help='Compare symlink target', action=argparse.BooleanOptionalAction, default=True)
-parser.add_argument('--compare-crc32', choices=['never', 'always', 'smart'], default='smart', help='Hash calculation (CRC32) is highly CPU/IO intensive but is the only way to ensure files are bit-for-bit identical. "smart" parameter will run this calculation only for files that have same metadata values (size, modification date, etc.), this is the default behavior.')
+parser.add_argument('--compare-permissions', help='Compare permissions (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--compare-owner', help='Compare owner (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--compare-group', help='Compare group (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--compare-suid', help='Compare SUID (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--compare-guid', help='Compare GUID (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--compare-sticky', help='Compare sticky bit (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--compare-file-size', help='Compare file size (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--compare-directory-size', help='Compare directory size (only for complete mode)', action=argparse.BooleanOptionalAction, default=False)
+parser.add_argument('--compare-file-mtime', help='Compare file modified time (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--compare-directory-mtime', help='Compare directory modified time (only for complete mode)', action=argparse.BooleanOptionalAction, default=False)
+parser.add_argument('--compare-ctime', help='Compare creation time (only for complete mode)', action=argparse.BooleanOptionalAction, default=False)
+parser.add_argument('--compare-atime', help='Compare access time (only for complete mode)', action=argparse.BooleanOptionalAction, default=False)
+parser.add_argument('--compare-symlink', help='Compare symlink target (only for complete mode)', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--compare-crc32', choices=['never', 'always', 'smart'], default='smart', help='Hash calculation (CRC32) is highly CPU/IO intensive but is the only way to ensure files are bit-for-bit identical. "smart" parameter will run this calculation only for files that have same metadata values (size, modification date, etc.), this is the default behavior. Note: smart is forced in corruption mode.')
 
 args = parser.parse_args()
 
@@ -431,20 +431,56 @@ else:
 s = FileList(os.path.join(args.src, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
 d = FileList(os.path.join(args.dst, '').encode(), [x.encode() for x in args.excludes if args.excludes is not None])
 
+if args.mode == 'complete':
+    discover_crc32 = True if args.compare_crc32 == 'always' else False
+    comparison_smart_crc32 = True if args.compare_crc32 == 'smart' else False
+    comparison_criterias = {'filemode': args.compare_permissions,
+                            'owner': args.compare_owner,
+                            'group': args.compare_group,
+                            'suid': args.compare_suid,
+                            'guid': args.compare_guid,
+                            'sticky': args.compare_sticky,
+                            'file-size': args.compare_file_size,
+                            'directory-size': args.compare_directory_size,
+                            'file-mtime': args.compare_file_mtime,
+                            'directory-mtime': args.compare_directory_mtime,
+                            'ctime': args.compare_ctime,
+                            'atime': args.compare_atime,
+                            'symlink': args.compare_symlink}
+
+elif args.mode == 'corruption':
+    # Force smart CRC32 calculation at comparison step
+    discover_crc32 = False
+    comparison_smart_crc32 = True
+    comparison_criterias = {'filemode': False,
+                            'owner': False,
+                            'group': False,
+                            'suid': False,
+                            'guid': False,
+                            'sticky': False,
+                            'file-size': True,
+                            'directory-size': False,
+                            'file-mtime': True,
+                            'directory-mtime': False,
+                            'ctime': False,
+                            'atime': False,
+                            'symlink': False}
+
+
 if args.parallel:
-    th_s = threading.Thread(target = s.run, args = (args.mode, args.progress, True if args.compare_crc32 == 'always' else False, ))
-    th_d = threading.Thread(target = d.run, args = (args.mode, args.progress, True if args.compare_crc32 == 'always' else False, ))
+    th_s = threading.Thread(target = s.run, args = (args.mode, args.progress, discover_crc32, ))
+    th_d = threading.Thread(target = d.run, args = (args.mode, args.progress, discover_crc32, ))
     th_s.start()
     th_d.start()
     th_s.join()
     th_d.join()
 else:
-    s.run(args.mode, args.progress, True if args.compare_crc32 == 'always' else False)
-    d.run(args.mode, args.progress, True if args.compare_crc32 == 'always' else False)
+    s.run(args.mode, args.progress, discover_crc32)
+    d.run(args.mode, args.progress, discover_crc32)
 
-if args.mode == 'complete' :    print(f"Source tree: {len(s)} entries")
+if args.mode == 'complete':    print(f"Source tree: {len(s)} entries")
 if args.dump:                   print(s)
-if args.mode == 'complete' :    print(f"Destination tree: {len(d)} entries")
+if args.mode == 'complete':    print(f"Destination tree: {len(d)} entries")
 if args.dump:                   print(d)
 
 exit(compareFilelists(s, d, args.mode, True if args.compare_crc32 == 'smart' else False,
