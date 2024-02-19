@@ -483,17 +483,7 @@ if args.dump:                   print(s)
 if args.mode == 'complete':    print(f"Destination tree: {len(d)} entries")
 if args.dump:                   print(d)
 
-exit(compareFilelists(s, d, args.mode, True if args.compare_crc32 == 'smart' else False,
-                        args.parallel, args.progress, {'filemode': args.compare_permissions,
-                                                        'owner': args.compare_owner,
-                                                        'group': args.compare_group,
-                                                        'suid': args.compare_suid,
-                                                        'guid': args.compare_guid,
-                                                        'sticky': args.compare_sticky,
-                                                        'file-size': args.compare_file_size,
-                                                        'directory-size': args.compare_directory_size,
-                                                        'file-mtime': args.compare_file_mtime,
-                                                        'directory-mtime': args.compare_directory_mtime,
-                                                        'ctime': args.compare_ctime,
-                                                        'atime': args.compare_atime,
-                                                        'symlink': args.compare_symlink}))
+if compareFilelists(s, d, args.mode, comparison_smart_crc32, args.parallel, args.progress, comparison_criterias):
+    exit(1)
+else:
+    exit(0)
