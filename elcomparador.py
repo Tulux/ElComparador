@@ -349,7 +349,7 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
                 for d in e.differences:
                     print(f'\t{d}')
         else:
-            if smart_crc32:
+            if s_entry.type == FileType.REG and smart_crc32:
                 if progress:
                     prefix = f'CRC32 check ({current_file}/{total} - {current_file/total*100:.1f}%) <'
                     message = f'{s_entry.name}>'
