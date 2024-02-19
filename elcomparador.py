@@ -372,6 +372,10 @@ def compareFilelists(src, dst, mode, smart_crc32, parallel, progress, comp_opts)
                     diff_count += 1
                     print(f'⚠ WARNING: <{s_entry.name}> has similar metadatas but different CRC32, THERE MIGHT BE CORRUPTION ON ONE SIDE')
 
+    # Required to clean line
+    if progress:
+        print()
+
     if not diff_count:
         if mode == 'complete':
             print('Trees are identical\033[K')
