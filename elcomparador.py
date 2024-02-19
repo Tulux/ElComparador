@@ -286,7 +286,10 @@ class FileList:
         return len(self.flist)
 
     def __getitem__(self, k):
-        return self.flist[k]
+        if len(self) > 0:
+            return self.flist[k]
+        else:
+            raise IndexError('Empty tree')
 
     def __iter__(self):
         return iter(self.flist)
@@ -305,6 +308,9 @@ class FileList:
         seek_end = len(self)
         seek_current = int(len(self) / 2)
         last_iteration = False
+
+        if len(self) == 0:
+            return False
 
         while True:
             if entry.name > self[seek_current].name:
